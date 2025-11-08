@@ -1,4 +1,14 @@
 #!/usr/bin/env node
+
+// Suppress punycode deprecation warning from dependencies
+process.removeAllListeners('warning');
+process.on('warning', (warning) => {
+  if (warning.name === 'DeprecationWarning' && warning.message.includes('punycode')) {
+    return;
+  }
+  console.warn(warning);
+});
+
 import { Command } from 'commander';
 import { input, select, confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
@@ -21,7 +31,7 @@ const program = new Command();
 program
   .name('issue')
   .description('CLI tool to manage Linear issues from client feedback')
-  .version('0.2.5')
+  .version('0.2.6')
   .option('--tldr', 'Show a brief explanation of what this tool does');
 
 // Handle --tldr flag
@@ -359,11 +369,36 @@ program
 
         console.log(theme.label(`${item.extractedIssue.title}`) + '\n');
 
-        const deadlineInput = await input({
-          message: 'When should the deadline be? (e.g., "5 working days", "next friday", or press Enter to skip):',
+        const deadlineChoice = await select({
+          message: 'When should the deadline be?',
+          choices: [
+            { name: '1. 1 working day', value: '1 working day' },
+            { name: '2. 2 working days', value: '2 working days' },
+            { name: '3. 3 working days', value: '3 working days' },
+            { name: '4. 4 working days', value: '4 working days' },
+            { name: '5. 5 working days', value: '5 working days' },
+            { name: '6. Tuesday (after today)', value: 'next tuesday' },
+            { name: '7. Thursday (after today)', value: 'next thursday' },
+            { name: '8. Friday (after today)', value: 'next friday' },
+            { name: '9. Write-in', value: '__write_in__' },
+            { name: '10. No deadline', value: '__skip__' },
+          ],
         });
 
-        if (deadlineInput.trim()) {
+        let deadlineInput = deadlineChoice;
+
+        // Handle write-in
+        if (deadlineChoice === '__write_in__') {
+          const customDeadline = await input({
+            message: 'Enter your deadline (e.g., "next monday", "january 15"):',
+          });
+          deadlineInput = customDeadline;
+        }
+
+        // Handle skip
+        if (deadlineChoice === '__skip__' || !deadlineInput.trim()) {
+          issueDeadlines.set(i, null);
+        } else {
           const deadlineSpinner = ora('Parsing deadline...').start();
           try {
             const parsedDeadline = await parseDeadlineToDate(deadlineInput);
@@ -379,8 +414,6 @@ program
             console.error(theme.error('Error:'), error);
             issueDeadlines.set(i, null);
           }
-        } else {
-          issueDeadlines.set(i, null);
         }
 
         console.log(); // Extra spacing between issues
