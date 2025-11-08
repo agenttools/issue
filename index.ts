@@ -209,9 +209,155 @@ program
     });
 
     if (!shouldProceed) {
-      console.log(theme.warning(`\n${symbols.error} Cancelled. No changes made.`));
-      return;
+      console.log(theme.info(`\n${symbols.info} Let's refine these changes...\n`));
+
+      // Ask for natural language feedback
+      const feedback = await input({
+        message: 'What changes would you like to make? (or press Enter to cancel)',
+      });
+
+      if (!feedback.trim()) {
+        console.log(theme.warning(`\n${symbols.error} Cancelled. No changes made.`));
+        return;
+      }
+
+      // Re-analyze with the additional feedback
+      console.log(theme.muted(`\n${symbols.info} Re-analyzing with your feedback...\n`));
+      const refinedSpinner = ora('Processing your feedback...').start();
+
+      // Combine original transcript with feedback
+      const combinedTranscript = `${transcript}\n\nAdditional feedback: ${feedback}`;
+      const refinedIssues = await extractIssuesStructured(combinedTranscript);
+      const refinedProcessed = await matchIssuesToLinear(refinedIssues, existingIssues);
+
+      refinedSpinner.succeed('Updated analysis complete');
+
+      // Show updated proposed actions
+      console.log('\n' + theme.heading('UPDATED PROPOSED ACTIONS') + '\n');
+
+      refinedProcessed.forEach((item, index) => {
+        const issue = item.extractedIssue;
+
+        console.log(`  ${actionBadge(item.action)}  ${theme.heading(issue.title)}`);
+        console.log(theme.muted(`     ${issue.description}`));
+
+        const metadata = [
+          { label: 'Type', value: issue.type },
+          { label: 'Priority', value: issue.priority },
+        ];
+
+        if (item.matchedIssueIdentifier) {
+          metadata.push({ label: 'Target', value: theme.identifier(item.matchedIssueIdentifier) });
+        }
+
+        metadata.forEach((meta, i) => {
+          const isLast = i === metadata.length - 1;
+          const prefix = isLast ? symbols.treeCorner : symbols.treeEdge;
+          console.log(theme.muted(`     ${prefix} ${meta.label}: `) + theme.value(meta.value));
+        });
+
+        console.log(theme.muted(`\n     ${symbols.info} ${item.reason}`));
+        console.log();
+      });
+
+      console.log(separator(70, symbols.boxHorizontalHeavy));
+
+      const refinedSummary = {
+        create: refinedProcessed.filter(p => p.action === 'create').length,
+        update: refinedProcessed.filter(p => p.action === 'update').length,
+        comment: refinedProcessed.filter(p => p.action === 'comment').length,
+      };
+
+      const refinedSummaryContent = `Create    ${refinedSummary.create}\nUpdate    ${refinedSummary.update}\nComment   ${refinedSummary.comment}`;
+      console.log('\n' + box(refinedSummaryContent, { title: 'UPDATED SUMMARY' }));
+      console.log();
+
+      if (isDryRun) {
+        console.log(theme.info(`\n${symbols.info} Dry run mode - no changes will be applied\n`));
+        return;
+      }
+
+      // Ask again if they want to proceed
+      const shouldProceedRefined = await confirm({
+        message: 'Proceed with these updated changes?',
+        default: true,
+      });
+
+      if (!shouldProceedRefined) {
+        console.log(theme.warning(`\n${symbols.error} Cancelled. No changes made.`));
+        return;
+      }
+
+      // Use the refined processed issues for execution
+      processedIssues.length = 0;
+      processedIssues.push(...refinedProcessed);
     }
+
+    // Enrich issues with additional context before creating/updating
+    console.log('\n' + theme.heading('ENRICHMENT QUESTIONS') + '\n');
+    console.log(theme.muted('Let\'s gather some additional context for these issues...\n'));
+
+    for (let i = 0; i < processedIssues.length; i++) {
+      const item = processedIssues[i];
+      const issue = item.extractedIssue;
+
+      console.log(theme.label(`\n${i + 1}. ${issue.title}`) + theme.muted(` (${item.action})`));
+
+      if (item.action === 'create') {
+        // Deadline question - natural language input
+        const deadline = await input({
+          message: 'When should the deadline be? (e.g., "5 working days", "next friday", "this thursday"):',
+        });
+
+        // Dependencies question
+        const hasDependencies = await select({
+          message: 'Does this have dependencies or blockers?',
+          choices: [
+            { name: 'No dependencies', value: 'none' },
+            { name: 'Depends on other work', value: 'has_dependencies' },
+            { name: 'Blocked by external factors', value: 'blocked' },
+          ],
+        });
+
+        // Time commitment / complexity
+        const timeCommitment = await select({
+          message: 'Time commitment estimate?',
+          choices: [
+            { name: 'Brainless', value: 'brainless' },
+            { name: '1 hour', value: '1_hour' },
+            { name: '3 hour focus', value: '3_hour_focus' },
+            { name: '1 day', value: '1_day' },
+            { name: '1-2 days', value: '1_2_days' },
+            { name: '2+ days', value: '2plus_days' },
+          ],
+        });
+
+        // Append enrichment data to description
+        const enrichmentNotes = `\n\n---\n**Deadline:** ${deadline}\n**Dependencies:** ${hasDependencies}\n**Time Commitment:** ${timeCommitment}`;
+        issue.description += enrichmentNotes;
+      } else if (item.action === 'update' || item.action === 'comment') {
+        // For updates/comments, ask if additional context is needed
+        const needsContext = await select({
+          message: `Add additional context to this ${item.action}?`,
+          choices: [
+            { name: 'No, proceed as-is', value: 'no' },
+            { name: 'Yes, add notes', value: 'yes' },
+          ],
+        });
+
+        if (needsContext === 'yes') {
+          const additionalContext = await input({
+            message: 'Additional context or notes:',
+          });
+
+          if (additionalContext.trim()) {
+            issue.description += `\n\n**Additional Context:** ${additionalContext}`;
+          }
+        }
+      }
+    }
+
+    console.log('\n' + theme.success(`${symbols.success} Enrichment complete!\n`));
 
     // Execute the changes
     const execSpinner = ora('Applying changes to Linear...').start();
