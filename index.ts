@@ -31,7 +31,7 @@ const program = new Command();
 program
   .name('issue')
   .description('CLI tool to manage Linear issues from client feedback')
-  .version('0.2.8')
+  .version('0.2.9')
   .option('--tldr', 'Show a brief explanation of what this tool does');
 
 // Handle --tldr flag
@@ -564,16 +564,13 @@ program
         const deadlineChoice = await select({
           message: 'When should the deadline be?',
           choices: [
-            { name: '1. 1 working day', value: '1 working day' },
-            { name: '2. 2 working days', value: '2 working days' },
-            { name: '3. 3 working days', value: '3 working days' },
-            { name: '4. 4 working days', value: '4 working days' },
-            { name: '5. 5 working days', value: '5 working days' },
-            { name: '6. Tuesday (after today)', value: 'next tuesday' },
-            { name: '7. Thursday (after today)', value: 'next thursday' },
-            { name: '8. Friday (after today)', value: 'next friday' },
-            { name: '9. Write-in', value: '__write_in__' },
-            { name: '10. No deadline', value: '__skip__' },
+            { name: '1. Write-in', value: '__write_in__' },
+            { name: '2. Tuesday (after today)', value: 'next tuesday' },
+            { name: '3. Wednesday (after today)', value: 'next wednesday' },
+            { name: '4. Thursday (after today)', value: 'next thursday' },
+            { name: '5. Friday (after today)', value: 'next friday' },
+            { name: '6. No deadline', value: '__skip__' },
+            { name: '7. 1 week', value: '1 week' },
           ],
         });
 
