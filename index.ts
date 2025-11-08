@@ -14,6 +14,7 @@ import {
 } from './src/lib/linear';
 import { extractIssuesStructured, matchIssuesToLinear, initializeAnthropic } from './src/lib/claude';
 import { getAnthropicApiKey, getLinearApiKey } from './src/lib/config';
+import { symbols, theme, box, separator, tree, actionBadge } from './src/lib/theme';
 
 const program = new Command();
 
@@ -27,24 +28,27 @@ program
 program.hook('preAction', (thisCommand, actionCommand) => {
   const opts = thisCommand.opts();
   if (opts.tldr) {
-    console.log(chalk.bold.cyan('\n📝 Issues - AI-Powered Linear Issue Manager\n'));
-    console.log(chalk.white('This tool automatically processes unstructured client feedback and updates Linear tickets.\n'));
-    console.log(chalk.bold('How it works:'));
-    console.log(chalk.dim('  1. Paste feedback from meetings, emails, or Slack'));
-    console.log(chalk.dim('  2. AI extracts and categorizes issues'));
-    console.log(chalk.dim('  3. Smart matching to existing Linear tickets'));
-    console.log(chalk.dim('  4. Creates new tickets or updates existing ones\n'));
-    console.log(chalk.bold('Key features:'));
-    console.log(chalk.dim('  • AI-powered issue extraction (Claude)'));
-    console.log(chalk.dim('  • Intelligent ticket matching'));
-    console.log(chalk.dim('  • Multi-action support (create/update/comment)'));
-    console.log(chalk.dim('  • Preview mode with --dry-run'));
-    console.log(chalk.dim('  • Interactive API key setup\n'));
-    console.log(chalk.bold('Usage:'));
-    console.log(chalk.cyan('  issue              ') + chalk.dim('# Start interactive session'));
-    console.log(chalk.cyan('  issue --dry-run    ') + chalk.dim('# Preview changes only'));
-    console.log(chalk.cyan('  issue agent        ') + chalk.dim('# For AI agents (tmux mode)'));
-    console.log(chalk.cyan('  issue --help       ') + chalk.dim('# Show all options\n'));
+    console.log('\n' + box('AI-Powered Linear Issue Manager', { title: 'ISSUE', style: 'heavy' }));
+    console.log('\n' + theme.value('This tool automatically processes unstructured client feedback and updates Linear tickets.\n'));
+
+    console.log(theme.heading('How it works:'));
+    console.log(theme.muted('  1. Paste feedback from meetings, emails, or Slack'));
+    console.log(theme.muted('  2. AI extracts and categorizes issues'));
+    console.log(theme.muted('  3. Smart matching to existing Linear tickets'));
+    console.log(theme.muted('  4. Creates new tickets or updates existing ones\n'));
+
+    console.log(theme.heading('Key features:'));
+    console.log(theme.muted(`  ${symbols.bullet} AI-powered issue extraction (Claude)`));
+    console.log(theme.muted(`  ${symbols.bullet} Intelligent ticket matching`));
+    console.log(theme.muted(`  ${symbols.bullet} Multi-action support (create/update/comment)`));
+    console.log(theme.muted(`  ${symbols.bullet} Preview mode with --dry-run`));
+    console.log(theme.muted(`  ${symbols.bullet} Interactive API key setup\n`));
+
+    console.log(theme.heading('Usage:'));
+    console.log(theme.info('  issue              ') + theme.muted('# Start interactive session'));
+    console.log(theme.info('  issue --dry-run    ') + theme.muted('# Preview changes only'));
+    console.log(theme.info('  issue agent        ') + theme.muted('# For AI agents (tmux mode)'));
+    console.log(theme.info('  issue --help       ') + theme.muted('# Show all options\n'));
     process.exit(0);
   }
 });
@@ -55,7 +59,7 @@ program
   .action(async () => {
     const { execSync } = await import('child_process');
 
-    console.log(chalk.bold.cyan('\n🤖 Agent Mode - Starting in tmux session...\n'));
+    console.log('\n' + theme.subheading(`${symbols.arrow} Agent Mode - Starting in tmux session...\n`));
 
     const sessionName = `issue-${Date.now()}`;
 
@@ -69,27 +73,27 @@ program
         cwd: process.cwd()
       });
 
-      console.log(chalk.green('✓ Started tmux session:'), chalk.bold(sessionName));
-      console.log(chalk.dim('\nAgent Instructions:'));
-      console.log(chalk.white('To interact with the tool, use tmux commands:\n'));
-      console.log(chalk.cyan('  # Send keys to the session'));
-      console.log(chalk.dim(`  tmux send-keys -t ${sessionName} "your input here" C-m\n`));
-      console.log(chalk.cyan('  # Capture pane output'));
-      console.log(chalk.dim(`  tmux capture-pane -t ${sessionName} -p\n`));
-      console.log(chalk.cyan('  # Attach to session (for debugging)'));
-      console.log(chalk.dim(`  tmux attach -t ${sessionName}\n`));
-      console.log(chalk.cyan('  # Kill session when done'));
-      console.log(chalk.dim(`  tmux kill-session -t ${sessionName}\n`));
-      console.log(chalk.bold.yellow('Session name: ') + chalk.bold(sessionName));
-      console.log(chalk.dim('\nThe interactive tool is now running in the tmux session.'));
-      console.log(chalk.dim('Use tmux commands to send input and read output.\n'));
+      console.log(theme.success(`${symbols.success} Started tmux session: `) + theme.label(sessionName));
+      console.log(theme.muted('\nAgent Instructions:'));
+      console.log(theme.value('To interact with the tool, use tmux commands:\n'));
+      console.log(theme.info('  # Send keys to the session'));
+      console.log(theme.muted(`  tmux send-keys -t ${sessionName} "your input here" C-m\n`));
+      console.log(theme.info('  # Capture pane output'));
+      console.log(theme.muted(`  tmux capture-pane -t ${sessionName} -p\n`));
+      console.log(theme.info('  # Attach to session (for debugging)'));
+      console.log(theme.muted(`  tmux attach -t ${sessionName}\n`));
+      console.log(theme.info('  # Kill session when done'));
+      console.log(theme.muted(`  tmux kill-session -t ${sessionName}\n`));
+      console.log(theme.label('Session name: ') + theme.accent(sessionName));
+      console.log(theme.muted('\nThe interactive tool is now running in the tmux session.'));
+      console.log(theme.muted('Use tmux commands to send input and read output.\n'));
 
     } catch (error) {
-      console.error(chalk.red('\n✗ Error: tmux is not installed or not available'));
-      console.log(chalk.dim('\nTo install tmux:'));
-      console.log(chalk.dim('  macOS:   brew install tmux'));
-      console.log(chalk.dim('  Ubuntu:  sudo apt-get install tmux'));
-      console.log(chalk.dim('  Other:   See https://github.com/tmux/tmux/wiki\n'));
+      console.error(theme.error(`\n${symbols.error} Error: tmux is not installed or not available`));
+      console.log(theme.muted('\nTo install tmux:'));
+      console.log(theme.muted('  macOS:   brew install tmux'));
+      console.log(theme.muted('  Ubuntu:  sudo apt-get install tmux'));
+      console.log(theme.muted('  Other:   See https://github.com/tmux/tmux/wiki\n'));
       process.exit(1);
     }
   });
@@ -100,7 +104,7 @@ program
   .option('--dry-run', 'Preview changes without applying them')
   .action(async (options) => {
     const isDryRun = options.dryRun;
-    console.log(chalk.bold('🚀 Issue Manager - Processing client feedback...\n'));
+    console.log('\n' + theme.subheading(`${symbols.arrow} Issue Manager - Processing client feedback...\n`));
 
     // Initialize APIs
     const anthropicKey = await getAnthropicApiKey();
@@ -114,7 +118,7 @@ program
       message: 'Paste your transcript/message:',
     });
 
-    console.log(chalk.dim(`\n📝 Captured ${transcript.length} characters\n`));
+    console.log(theme.muted(`\n${symbols.info} Captured ${transcript.length} characters\n`));
 
     // Step 2: Fetch teams from Linear
     const teams = await fetchTeams();
@@ -147,33 +151,41 @@ program
     matchSpinner.succeed('Issue matching complete');
 
     // Display proposed actions
-    console.log('\n' + chalk.green('✓ Analysis complete!'));
-    console.log(chalk.dim('━'.repeat(70)));
-    console.log(chalk.bold('Team:'), selectedTeam?.name);
-    console.log(chalk.bold('Existing issues in Linear:'), existingIssues.length);
+    console.log('\n' + theme.success(`${symbols.success} Analysis complete!`));
+    console.log(separator(70, symbols.boxHorizontalHeavy));
+    console.log(theme.label('Team: ') + theme.value(selectedTeam?.name || 'Unknown'));
+    console.log(theme.label('Existing issues: ') + theme.value(existingIssues.length.toString()));
 
-    console.log(chalk.bold('\n📋 Proposed Actions:\n'));
+    console.log('\n' + theme.heading('PROPOSED ACTIONS') + '\n');
 
     processedIssues.forEach((item, index) => {
       const issue = item.extractedIssue;
-      const actionColor =
-        item.action === 'create' ? chalk.green :
-        item.action === 'update' ? chalk.yellow :
-        chalk.blue;
 
-      console.log(actionColor(`  ${index + 1}. [${item.action.toUpperCase()}] ${issue.title}`));
-      console.log(chalk.dim(`     ${issue.description}`));
-      console.log(chalk.dim(`     Type: ${issue.type} | Priority: ${issue.priority}`));
+      // Action badge
+      console.log(`  ${actionBadge(item.action)}  ${theme.heading(issue.title)}`);
+      console.log(theme.muted(`     ${issue.description}`));
+
+      // Metadata tree
+      const metadata = [
+        { label: 'Type', value: issue.type },
+        { label: 'Priority', value: issue.priority },
+      ];
 
       if (item.matchedIssueIdentifier) {
-        console.log(chalk.dim(`     → ${item.matchedIssueIdentifier}`));
+        metadata.push({ label: 'Target', value: theme.identifier(item.matchedIssueIdentifier) });
       }
 
-      console.log(chalk.italic.dim(`     ${item.reason}`));
+      metadata.forEach((meta, i) => {
+        const isLast = i === metadata.length - 1;
+        const prefix = isLast ? symbols.treeCorner : symbols.treeEdge;
+        console.log(theme.muted(`     ${prefix} ${meta.label}: `) + theme.value(meta.value));
+      });
+
+      console.log(theme.muted(`\n     ${symbols.info} ${item.reason}`));
       console.log();
     });
 
-    console.log(chalk.dim('━'.repeat(70)));
+    console.log(separator(70, symbols.boxHorizontalHeavy));
 
     const summary = {
       create: processedIssues.filter(p => p.action === 'create').length,
@@ -181,14 +193,12 @@ program
       comment: processedIssues.filter(p => p.action === 'comment').length,
     };
 
-    console.log(chalk.bold('\nSummary:'));
-    console.log(chalk.green(`  ${summary.create} new tickets to create`));
-    console.log(chalk.yellow(`  ${summary.update} tickets to update`));
-    console.log(chalk.blue(`  ${summary.comment} comments to add`));
+    const summaryContent = `Create    ${summary.create}\nUpdate    ${summary.update}\nComment   ${summary.comment}`;
+    console.log('\n' + box(summaryContent, { title: 'SUMMARY' }));
     console.log();
 
     if (isDryRun) {
-      console.log(chalk.cyan('\n💡 Dry run mode - no changes will be applied\n'));
+      console.log(theme.info(`\n${symbols.info} Dry run mode - no changes will be applied\n`));
       return;
     }
 
@@ -199,7 +209,7 @@ program
     });
 
     if (!shouldProceed) {
-      console.log(chalk.yellow('\n✗ Cancelled. No changes made.'));
+      console.log(theme.warning(`\n${symbols.error} Cancelled. No changes made.`));
       return;
     }
 
@@ -247,19 +257,35 @@ program
     execSpinner.succeed('All changes applied successfully!');
 
     // Final summary
-    console.log(chalk.green.bold('\n✓ Complete!\n'));
+    console.log('\n' + theme.success(`${symbols.success} Complete!\n`));
+
+    const completionLines: string[] = [];
+
     if (results.created.length > 0) {
-      console.log(chalk.green('Created:'));
-      results.created.forEach(id => console.log(chalk.green(`  ✓ ${id}`)));
+      completionLines.push(theme.action.create.bold('Created') + theme.muted(` (${results.created.length})`));
+      results.created.forEach(id => {
+        completionLines.push(theme.action.create(`  ${symbols.success} `) + theme.identifier(id));
+      });
+      completionLines.push('');
     }
+
     if (results.updated.length > 0) {
-      console.log(chalk.yellow('Updated:'));
-      results.updated.forEach(id => console.log(chalk.yellow(`  ↻ ${id}`)));
+      completionLines.push(theme.action.update.bold('Updated') + theme.muted(` (${results.updated.length})`));
+      results.updated.forEach(id => {
+        completionLines.push(theme.action.update(`  ${symbols.update} `) + theme.identifier(id));
+      });
+      completionLines.push('');
     }
+
     if (results.commented.length > 0) {
-      console.log(chalk.blue('Commented:'));
-      results.commented.forEach(id => console.log(chalk.blue(`  💬 ${id}`)));
+      completionLines.push(theme.action.comment.bold('Commented') + theme.muted(` (${results.commented.length})`));
+      results.commented.forEach(id => {
+        completionLines.push(theme.action.comment(`  ${symbols.comment} `) + theme.identifier(id));
+      });
+      completionLines.push('');
     }
+
+    console.log(box(completionLines.join('\n'), { title: 'RESULTS', style: 'heavy' }));
     console.log();
   });
 
