@@ -1,0 +1,26 @@
+{
+  "name": "issue-manager",
+  "version": "0.1.0",
+  "description": "CLI tool to manage Linear issues from client feedback using AI",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "bun run index.ts",
+    "process": "bun run index.ts process",
+    "dry-run": "bun run index.ts process --dry-run"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.68.0",
+    "@inquirer/prompts": "^7.9.0",
+    "chalk": "^5.6.2",
+    "commander": "^14.0.2",
+    "ora": "^9.0.0"
+  }
+}
