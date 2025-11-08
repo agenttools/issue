@@ -31,7 +31,7 @@ const program = new Command();
 program
   .name('issue')
   .description('CLI tool to manage Linear issues from client feedback')
-  .version('0.2.6')
+  .version('0.2.7')
   .option('--tldr', 'Show a brief explanation of what this tool does');
 
 // Handle --tldr flag
@@ -109,11 +109,209 @@ program
   });
 
 program
-  .command('process', { isDefault: true })
-  .description('Process client feedback and update Linear tickets')
+  .command('quick')
+  .description('Quick mode - process feedback without enrichment questions')
   .option('--dry-run', 'Preview changes without applying them')
   .action(async (options) => {
     const isDryRun = options.dryRun;
+    const skipEnrichment = true; // Always skip for quick mode
+    console.log('\n' + theme.subheading(`${symbols.arrow} Issue Manager - Quick Mode\n`));
+
+    // Initialize APIs
+    const anthropicKey = await getAnthropicApiKey();
+    initializeAnthropic(anthropicKey);
+
+    const linearKey = await getLinearApiKey();
+    initializeLinear(linearKey);
+
+    // Step 1: Get the transcript/message
+    const transcript = await input({
+      message: 'Paste your transcript/message:',
+    });
+
+    console.log(theme.muted(`\n${symbols.info} Captured ${transcript.length} characters\n`));
+
+    // Step 2: Skip enrichment questions
+    const enrichmentContext: Record<string, string> = {};
+
+    // Step 3: Fetch teams from Linear
+    const teams = await fetchTeams();
+
+    const teamChoices = teams.map(team => ({
+      name: `${team.name} (${team.key})`,
+      value: team.id,
+    }));
+
+    const teamId = await select({
+      message: 'Which client/team is this for?',
+      choices: teamChoices,
+    });
+
+    const selectedTeam = teams.find(t => t.id === teamId);
+
+    // Step 4: Fetch existing issues for this team
+    const spinner = ora('Fetching existing issues from Linear...').start();
+    const existingIssues = await fetchIssuesForTeam(teamId);
+    spinner.succeed(`Found ${existingIssues.length} existing issues`);
+
+    // Step 5: Use Claude to extract issues from transcript with enrichment context
+    const aiSpinner = ora('Analyzing transcript with Claude...').start();
+    const extractedIssues = await extractIssuesStructured(transcript, enrichmentContext);
+    aiSpinner.succeed(`Extracted ${extractedIssues.length} issues from transcript`);
+
+    // Step 6: Match extracted issues to existing Linear issues
+    const matchSpinner = ora('Matching issues to Linear tickets...').start();
+    const processedIssues = await matchIssuesToLinear(extractedIssues, existingIssues);
+    matchSpinner.succeed('Issue matching complete');
+
+    // Continue with the same flow as process command...
+    // Display proposed actions
+    console.log('\n' + theme.success(`${symbols.success} Analysis complete!`));
+    console.log(separator(70, symbols.boxHorizontalHeavy));
+    console.log(theme.label('Team: ') + theme.value(selectedTeam?.name || 'Unknown'));
+    console.log(theme.label('Existing issues: ') + theme.value(existingIssues.length.toString()));
+
+    console.log('\n' + theme.heading('PROPOSED ACTIONS') + '\n');
+
+    processedIssues.forEach((item, index) => {
+      const issue = item.extractedIssue;
+
+      // Action badge
+      console.log(`  ${actionBadge(item.action)}  ${theme.heading(issue.title)}`);
+      console.log(theme.muted(`     ${issue.description}`));
+
+      // Metadata tree
+      const metadata = [
+        { label: 'Type', value: issue.type },
+        { label: 'Priority', value: issue.priority },
+      ];
+
+      if (item.matchedIssueIdentifier) {
+        metadata.push({ label: 'Target', value: theme.identifier(item.matchedIssueIdentifier) });
+      }
+
+      metadata.forEach((meta, i) => {
+        const isLast = i === metadata.length - 1;
+        const prefix = isLast ? symbols.treeCorner : symbols.treeEdge;
+        console.log(theme.muted(`     ${prefix} ${meta.label}: `) + theme.value(meta.value));
+      });
+
+      console.log(theme.muted(`\n     ${symbols.info} ${item.reason}`));
+      console.log();
+    });
+
+    console.log(separator(70, symbols.boxHorizontalHeavy));
+
+    const summary = {
+      create: processedIssues.filter(p => p.action === 'create').length,
+      update: processedIssues.filter(p => p.action === 'update').length,
+      comment: processedIssues.filter(p => p.action === 'comment').length,
+    };
+
+    const summaryContent = `Create    ${summary.create}\nUpdate    ${summary.update}\nComment   ${summary.comment}`;
+    console.log('\n' + box(summaryContent, { title: 'SUMMARY' }));
+    console.log();
+
+    if (isDryRun) {
+      console.log(theme.info(`\n${symbols.info} Dry run mode - no changes will be applied\n`));
+      return;
+    }
+
+    // Skip to confirmation without deadline questions in quick mode
+    const shouldProceed = await confirm({
+      message: 'Proceed with these changes?',
+      default: true,
+    });
+
+    if (!shouldProceed) {
+      console.log(theme.warning(`\n${symbols.error} Cancelled. No changes made.`));
+      return;
+    }
+
+    // Execute the changes (no deadline questions)
+    const execSpinner = ora('Applying changes to Linear...').start();
+
+    const results = {
+      created: [] as string[],
+      updated: [] as string[],
+      commented: [] as string[],
+    };
+
+    for (const item of processedIssues) {
+      const { extractedIssue, action, matchedIssueId } = item;
+
+      try {
+        if (action === 'create') {
+          const priorityMap = { low: 1, medium: 2, high: 3, urgent: 4 };
+          const newIssue = await createIssue({
+            teamId,
+            title: extractedIssue.title,
+            description: extractedIssue.description,
+            priority: priorityMap[extractedIssue.priority],
+          });
+          results.created.push(newIssue.identifier);
+        } else if (action === 'update' && matchedIssueId) {
+          await updateIssue(matchedIssueId, {
+            description: extractedIssue.description,
+          });
+          results.updated.push(item.matchedIssueIdentifier || matchedIssueId);
+        } else if (action === 'comment' && matchedIssueId) {
+          await addCommentToIssue(
+            matchedIssueId,
+            `New feedback:\n${extractedIssue.description}`
+          );
+          results.commented.push(item.matchedIssueIdentifier || matchedIssueId);
+        }
+      } catch (error) {
+        execSpinner.fail(`Failed to process: ${extractedIssue.title}`);
+        console.error(chalk.red(error));
+        return;
+      }
+    }
+
+    execSpinner.succeed('All changes applied successfully!');
+
+    // Final summary
+    console.log('\n' + theme.success(`${symbols.success} Complete!\n`));
+
+    const completionLines: string[] = [];
+
+    if (results.created.length > 0) {
+      completionLines.push(theme.action.create.bold('Created') + theme.muted(` (${results.created.length})`));
+      results.created.forEach(id => {
+        completionLines.push(theme.action.create(`  ${symbols.success} `) + theme.identifier(id));
+      });
+      completionLines.push('');
+    }
+
+    if (results.updated.length > 0) {
+      completionLines.push(theme.action.update.bold('Updated') + theme.muted(` (${results.updated.length})`));
+      results.updated.forEach(id => {
+        completionLines.push(theme.action.update(`  ${symbols.update} `) + theme.identifier(id));
+      });
+      completionLines.push('');
+    }
+
+    if (results.commented.length > 0) {
+      completionLines.push(theme.action.comment.bold('Commented') + theme.muted(` (${results.commented.length})`));
+      results.commented.forEach(id => {
+        completionLines.push(theme.action.comment(`  ${symbols.comment} `) + theme.identifier(id));
+      });
+      completionLines.push('');
+    }
+
+    console.log(box(completionLines.join('\n'), { title: 'RESULTS', style: 'heavy' }));
+    console.log();
+  });
+
+program
+  .command('process', { isDefault: true })
+  .description('Process client feedback and update Linear tickets')
+  .option('--dry-run', 'Preview changes without applying them')
+  .option('--skip-enrichment', 'Skip enrichment questions')
+  .action(async (options) => {
+    const isDryRun = options.dryRun;
+    const skipEnrichment = options.skipEnrichment;
     console.log('\n' + theme.subheading(`${symbols.arrow} Issue Manager - Processing client feedback...\n`));
 
     // Initialize APIs
@@ -130,17 +328,11 @@ program
 
     console.log(theme.muted(`\n${symbols.info} Captured ${transcript.length} characters\n`));
 
-    // Step 2: Ask enrichment questions to gather context
-    console.log(theme.heading('ENRICHMENT QUESTIONS') + '\n');
-
-    const shouldEnrich = await confirm({
-      message: 'Would you like to answer follow-up questions for better context?',
-      default: true,
-    });
-
+    // Step 2: Ask enrichment questions to gather context (unless skipped)
     const enrichmentContext: Record<string, string> = {};
 
-    if (shouldEnrich) {
+    if (!skipEnrichment) {
+      console.log(theme.heading('ENRICHMENT QUESTIONS') + '\n');
       // Generate and ask contextual questions (NO deadline here)
       const questionSpinner = ora('Generating contextual questions...').start();
       let questions = [];
