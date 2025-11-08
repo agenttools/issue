@@ -323,7 +323,16 @@ program
         });
 
         // Generate contextual questions using Claude
-        const contextualQuestions = await generateEnrichmentQuestions(issue, transcript);
+        const questionSpinner = ora('Generating contextual questions...').start();
+        let contextualQuestions = [];
+        try {
+          contextualQuestions = await generateEnrichmentQuestions(issue, transcript);
+          questionSpinner.succeed(`Generated ${contextualQuestions.length} contextual questions`);
+        } catch (error) {
+          questionSpinner.fail('Failed to generate contextual questions');
+          console.error(theme.error('Error generating questions:'), error);
+          contextualQuestions = [];
+        }
 
         // Store answers to contextual questions
         const contextualAnswers: Record<string, string> = {};
