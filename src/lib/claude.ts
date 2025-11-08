@@ -14,6 +14,18 @@ export function initializeAnthropic(apiKey: string): void {
   anthropic = new Anthropic({ apiKey });
 }
 
+/**
+ * Strip markdown code blocks from JSON responses
+ */
+function stripMarkdownCodeBlocks(text: string): string {
+  // Remove ```json and ``` wrapping
+  return text
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+}
+
 export interface ExtractedIssue {
   title: string;
   description: string;
@@ -50,7 +62,7 @@ For each issue, provide:
 Client feedback:
 ${transcript}
 
-Return ONLY a valid JSON array with no additional text. Example format:
+Return ONLY a valid JSON array. Example format:
 [
   {
     "title": "Issue title",
@@ -60,6 +72,10 @@ Return ONLY a valid JSON array with no additional text. Example format:
   }
 ]`,
       },
+      {
+        role: 'assistant',
+        content: '[',
+      },
     ],
   });
 
@@ -68,12 +84,20 @@ Return ONLY a valid JSON array with no additional text. Example format:
     throw new Error('Expected text response from Claude');
   }
 
-  // Parse the JSON response
+  // Parse the JSON response (prepend [ since we prefilled it)
   try {
-    const issues = JSON.parse(content.text);
+    const jsonText = '[' + content.text.trim();
+    console.log('DEBUG - Attempting to parse:', jsonText.substring(0, 200) + '...');
+    const issues = JSON.parse(jsonText);
     return issues as ExtractedIssue[];
   } catch (error) {
-    console.error('Failed to parse Claude response as JSON:', content.text);
+    console.error('\nDEBUG - Raw response from Claude:');
+    console.error('Length:', content.text.length);
+    console.error('First 100 chars:', JSON.stringify(content.text.substring(0, 100)));
+    console.error('Last 100 chars:', JSON.stringify(content.text.substring(content.text.length - 100)));
+    console.error('\nAfter prepending [:');
+    console.error('[' + content.text);
+    console.error('\nParse error:', error);
     throw new Error('Claude did not return valid JSON');
   }
 }
@@ -137,7 +161,10 @@ Return ONLY valid JSON.`;
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-5-20250929',
     max_tokens: 2048,
-    messages: [{ role: 'user', content: prompt }],
+    messages: [
+      { role: 'user', content: prompt },
+      { role: 'assistant', content: '[' },
+    ],
   });
 
   const content = message.content[0];
@@ -146,12 +173,13 @@ Return ONLY valid JSON.`;
   }
 
   try {
+    const jsonText = '[' + content.text.trim();
     const matches: Array<{
       issueIndex: number;
       action: 'create' | 'update' | 'comment';
       matchedIssueIdentifier?: string;
       reason: string;
-    }> = JSON.parse(content.text);
+    }> = JSON.parse(jsonText);
 
     return matches.map(match => {
       const matchedIssue = match.matchedIssueIdentifier
@@ -167,7 +195,8 @@ Return ONLY valid JSON.`;
       };
     });
   } catch (error) {
-    console.error('Failed to parse Claude matching response:', content.text);
+    console.error('Failed to parse Claude matching response:', '[' + content.text);
+    console.error('Full error:', error);
     throw new Error('Claude did not return valid JSON for matching');
   }
 }
