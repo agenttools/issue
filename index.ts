@@ -21,7 +21,7 @@ const program = new Command();
 program
   .name('issue')
   .description('CLI tool to manage Linear issues from client feedback')
-  .version('0.1.0')
+  .version('0.2.3')
   .option('--tldr', 'Show a brief explanation of what this tool does');
 
 // Handle --tldr flag
@@ -295,11 +295,23 @@ program
 
     // Enrich issues with additional context before creating/updating
     console.log('\n' + theme.heading('ENRICHMENT QUESTIONS') + '\n');
-    console.log(theme.muted('Let\'s gather some additional context for these issues...\n'));
+
+    const shouldEnrich = await confirm({
+      message: 'Would you like to answer enrichment questions for better context?',
+      default: true,
+    });
+
+    if (shouldEnrich) {
+      console.log(theme.muted('\nLet\'s gather some additional context for these issues...\n'));
+    } else {
+      console.log(theme.muted('\nSkipping enrichment questions...\n'));
+    }
 
     for (let i = 0; i < processedIssues.length; i++) {
       const item = processedIssues[i];
       const issue = item.extractedIssue;
+
+      if (!shouldEnrich) continue;
 
       console.log(theme.label(`\n${i + 1}. ${issue.title}`) + theme.muted(` (${item.action})`));
 
@@ -379,7 +391,9 @@ program
       }
     }
 
-    console.log('\n' + theme.success(`${symbols.success} Enrichment complete!\n`));
+    if (shouldEnrich) {
+      console.log('\n' + theme.success(`${symbols.success} Enrichment complete!\n`));
+    }
 
     // Execute the changes
     const execSpinner = ora('Applying changes to Linear...').start();

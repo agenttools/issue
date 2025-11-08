@@ -87,17 +87,11 @@ Return ONLY a valid JSON array. Example format:
   // Parse the JSON response (prepend [ since we prefilled it)
   try {
     const jsonText = '[' + content.text.trim();
-    console.log('DEBUG - Attempting to parse:', jsonText.substring(0, 200) + '...');
     const issues = JSON.parse(jsonText);
     return issues as ExtractedIssue[];
   } catch (error) {
-    console.error('\nDEBUG - Raw response from Claude:');
-    console.error('Length:', content.text.length);
-    console.error('First 100 chars:', JSON.stringify(content.text.substring(0, 100)));
-    console.error('Last 100 chars:', JSON.stringify(content.text.substring(content.text.length - 100)));
-    console.error('\nAfter prepending [:');
-    console.error('[' + content.text);
-    console.error('\nParse error:', error);
+    console.error('\nFailed to parse Claude response');
+    console.error('Parse error:', error);
     throw new Error('Claude did not return valid JSON');
   }
 }
