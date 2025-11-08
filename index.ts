@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 import { Command } from 'commander';
 import { input, select, confirm } from '@inquirer/prompts';
 import chalk from 'chalk';

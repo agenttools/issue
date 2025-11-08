@@ -23,17 +23,20 @@
     "agenttools"
   ],
   "bin": {
-    "issue": "index.ts"
+    "issue": "./dist/index.js"
   },
   "files": [
-    "index.ts",
-    "src",
+    "dist",
     "README.md"
   ],
-  "module": "index.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
   "type": "module",
   "scripts": {
     "start": "bun run index.ts",
+    "dev": "bun run index.ts",
+    "build": "bun build index.ts --outdir dist --target node --format esm && cp -r src dist/",
+    "prepublishOnly": "bun run build",
     "process": "bun run index.ts process",
     "dry-run": "bun run index.ts process --dry-run"
   },
