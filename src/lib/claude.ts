@@ -43,19 +43,19 @@ export interface ProcessedIssue {
 
 /**
  * Generate enrichment questions based on the transcript to gather context
- * Always includes a deadline question as the first question
+ * Can generate up to 6 contextual questions
  */
 export async function generateTranscriptEnrichmentQuestions(transcript: string): Promise<EnrichmentQuestion[]> {
-  const prompt = `Based on this client feedback, generate 1-3 contextual questions to better understand the requirements before creating tickets.
+  const prompt = `Based on this client conversation or feedback, generate up to 6 contextual questions to better understand the requirements before creating tickets.
 
-Client Feedback:
+<client_notes>
 ${transcript}
+</client_notes>
 
 Generate questions that would help understand:
-- Specific technical requirements or constraints
-- User impact and priority
-- Dependencies or related work
-- Design or UX preferences
+- Design or engineering approach
+- Clarification on what the issue is
+- Clarification on how the issue should be solved
 
 Each question should have 2-4 options. Return as JSON:
 [
@@ -68,11 +68,11 @@ Each question should have 2-4 options. Return as JSON:
   }
 ]
 
-Return ONLY valid JSON. Generate 1-3 questions.`;
+Return ONLY valid JSON. Generate up to 6 questions based on what's most relevant to the feedback.`;
 
   const message = await anthropic.messages.create({
     model: 'claude-sonnet-4-5-20250929',
-    max_tokens: 2048,
+    max_tokens: 8048,
     messages: [
       { role: 'user', content: prompt },
       { role: 'assistant', content: '[' },
@@ -116,7 +116,7 @@ export async function extractIssuesStructured(
     messages: [
       {
         role: 'user',
-        content: `Extract all issues, problems, or feature requests from this client feedback and return them as a JSON array.
+        content: `Extract all issues, problems, or feature requests from this client conversation or feedback and return them as a JSON array.
 
 For each issue, provide:
 - title: A concise title (5-10 words)
@@ -124,8 +124,13 @@ For each issue, provide:
 - type: One of: "bug", "feature", "improvement", "question"
 - priority: One of: "low", "medium", "high", "urgent"
 
-Client feedback:
-${transcript}${enrichmentSection}
+<client_notes>
+${transcript}
+</client_notes>
+
+<additional_context>
+${enrichmentSection}
+</additional_context>
 
 Return ONLY a valid JSON array. Example format:
 [

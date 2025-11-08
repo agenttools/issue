@@ -31,7 +31,7 @@ const program = new Command();
 program
   .name('issue')
   .description('CLI tool to manage Linear issues from client feedback')
-  .version('0.2.7')
+  .version('0.2.8')
   .option('--tldr', 'Show a brief explanation of what this tool does');
 
 // Handle --tldr flag
