@@ -21,7 +21,7 @@ const program = new Command();
 program
   .name('issue')
   .description('CLI tool to manage Linear issues from client feedback')
-  .version('0.2.4')
+  .version('0.2.5')
   .option('--tldr', 'Show a brief explanation of what this tool does');
 
 // Handle --tldr flag
@@ -129,31 +129,9 @@ program
     });
 
     const enrichmentContext: Record<string, string> = {};
-    let parsedDeadline: string | null = null;
 
     if (shouldEnrich) {
-      // Ask deadline question first
-      const deadlineInput = await input({
-        message: 'When should the deadline be? (e.g., "5 working days", "next friday", "this thursday", or press Enter to skip):',
-      });
-
-      if (deadlineInput.trim()) {
-        const deadlineSpinner = ora('Parsing deadline...').start();
-        try {
-          parsedDeadline = await parseDeadlineToDate(deadlineInput);
-          if (parsedDeadline) {
-            deadlineSpinner.succeed(`Deadline set to: ${parsedDeadline}`);
-            enrichmentContext['Deadline'] = deadlineInput;
-          } else {
-            deadlineSpinner.warn('Could not parse deadline - skipping');
-          }
-        } catch (error) {
-          deadlineSpinner.fail('Failed to parse deadline');
-          console.error(theme.error('Error:'), error);
-        }
-      }
-
-      // Generate and ask contextual questions
+      // Generate and ask contextual questions (NO deadline here)
       const questionSpinner = ora('Generating contextual questions...').start();
       let questions = [];
       try {
@@ -167,12 +145,12 @@ program
 
       console.log();
       for (const q of questions) {
-        // Add numbered choices + write-in option
+        // Add numbered choices + write-in option as #5
         const numberedChoices = q.options.map((opt, idx) => ({
           name: `${idx + 1}. ${opt.label}`,
           value: opt.label,
         }));
-        numberedChoices.push({ name: 'Other (write in)', value: '__write_in__' });
+        numberedChoices.push({ name: '5. Other (write in)', value: '__write_in__' });
 
         const answer = await select({
           message: q.question,
@@ -188,6 +166,8 @@ program
         } else {
           enrichmentContext[q.question] = answer;
         }
+
+        console.log(); // Extra spacing between questions
       }
       console.log();
     }
@@ -365,6 +345,48 @@ program
       processedIssues.push(...refinedProcessed);
     }
 
+    // Ask deadline for each issue to be created
+    const issueDeadlines = new Map<number, string | null>();
+
+    const issuesToCreate = processedIssues.filter(item => item.action === 'create');
+    if (issuesToCreate.length > 0) {
+      console.log('\n' + theme.heading('ISSUE DEADLINES') + '\n');
+      console.log(theme.muted('Set deadlines for each issue to be created...\n'));
+
+      for (let i = 0; i < processedIssues.length; i++) {
+        const item = processedIssues[i];
+        if (item.action !== 'create') continue;
+
+        console.log(theme.label(`${item.extractedIssue.title}`) + '\n');
+
+        const deadlineInput = await input({
+          message: 'When should the deadline be? (e.g., "5 working days", "next friday", or press Enter to skip):',
+        });
+
+        if (deadlineInput.trim()) {
+          const deadlineSpinner = ora('Parsing deadline...').start();
+          try {
+            const parsedDeadline = await parseDeadlineToDate(deadlineInput);
+            if (parsedDeadline) {
+              deadlineSpinner.succeed(`Deadline set to: ${parsedDeadline}`);
+              issueDeadlines.set(i, parsedDeadline);
+            } else {
+              deadlineSpinner.warn('Could not parse deadline - skipping');
+              issueDeadlines.set(i, null);
+            }
+          } catch (error) {
+            deadlineSpinner.fail('Failed to parse deadline');
+            console.error(theme.error('Error:'), error);
+            issueDeadlines.set(i, null);
+          }
+        } else {
+          issueDeadlines.set(i, null);
+        }
+
+        console.log(); // Extra spacing between issues
+      }
+    }
+
     // Execute the changes
     const execSpinner = ora('Applying changes to Linear...').start();
 
@@ -374,18 +396,20 @@ program
       commented: [] as string[],
     };
 
-    for (const item of processedIssues) {
+    for (let i = 0; i < processedIssues.length; i++) {
+      const item = processedIssues[i];
       const { extractedIssue, action, matchedIssueId } = item;
 
       try {
         if (action === 'create') {
           const priorityMap = { low: 1, medium: 2, high: 3, urgent: 4 };
+          const dueDate = issueDeadlines.get(i);
           const newIssue = await createIssue({
             teamId,
             title: extractedIssue.title,
             description: extractedIssue.description,
             priority: priorityMap[extractedIssue.priority],
-            ...(parsedDeadline ? { dueDate: parsedDeadline } : {}),
+            ...(dueDate ? { dueDate } : {}),
           });
           results.created.push(newIssue.identifier);
         } else if (action === 'update' && matchedIssueId) {
