@@ -52,10 +52,15 @@ export async function generateTranscriptEnrichmentQuestions(transcript: string):
 ${transcript}
 </client_notes>
 
+
 Generate questions that would help understand:
 - Design or engineering approach
 - Clarification on what the issue is
 - Clarification on how the issue should be solved
+
+If a lot of things were discussed and provided ask questions to try to clarify how to break down the problem and what is going to be solved now.
+
+If not a lot of things were discussed or you have incomplete information, ask questions to gather more information.
 
 Each question should have 2-4 options. Return as JSON:
 [
