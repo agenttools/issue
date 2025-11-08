@@ -33,15 +33,15 @@ Using bun:
 bun add -g github:agenttools/issue
 ```
 
-### Install from npm (once published)
+### Install from npm
 
 ```bash
-npm install -g @agenttools/issue
+npm install -g @agenttools/issue-cli
 ```
 
 Or with bun:
 ```bash
-bun add -g @agenttools/issue
+bun add -g @agenttools/issue-cli
 ```
 
 ## Setup
