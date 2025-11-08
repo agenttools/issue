@@ -44,6 +44,11 @@ Or with bun:
 bun add -g @agenttools/issue
 ```
 
+Or directly with npx (no install):
+```bash
+npx @agenttools/issue
+```
+
 ## Setup
 
 The tool will prompt you for API keys when you first run it. You can choose to save them for future use, or provide them via environment variables.

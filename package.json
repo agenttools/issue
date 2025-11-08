@@ -1,5 +1,5 @@
 {
-  "name": "@jlawman/issue",
+  "name": "@agenttools/issue",
   "version": "0.1.2",
   "description": "AI-powered CLI tool to manage Linear issues from client feedback",
   "author": "AgentTools",
